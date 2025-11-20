@@ -5,121 +5,94 @@ class LatticeDynamics:
         self.N = N
         self.t_step = 0.0
         
-        # 1. Initialize Matter Field (The "Universe")
+        # 1. Initialize Complex Scalar Field
         self.S = np.random.rand(N, N) + 1j * np.random.rand(N, N)
         self.S /= np.linalg.norm(self.S)
         
-        # 2. RIEMANN ZETA DATA (The "Law")
-        # The first 10 non-trivial zeros (Imaginary parts)
-        # These define the resonant frequencies of the vacuum.
+        # 2. RIEMANN ZETA ZEROS (The DNA of the Vacuum)
+        # These imaginary parts define the "Resonant Frequencies" of the quantum foam.
         self.zeta_zeros = np.array([
             14.1347, 21.0220, 25.0108, 30.4248, 32.9350, 
-            37.5861, 40.9187, 43.3270, 48.0051, 49.7738
+            37.5861, 40.9187, 43.3270, 48.0051, 49.7738,
+            52.9703, 56.4462, 59.3470, 60.8317, 65.1125
         ])
         
-        # 3. Spatial Phase Map (Topology)
-        # Each zero has a unique random phase structure across the grid.
-        # This ensures the foam varies in space, not just time.
+        # Assign random spatial phase maps to each zero (Topology)
+        # This creates a complex 2D interference pattern for each frequency
         self.zeta_phases = np.random.uniform(0, 2*np.pi, (len(self.zeta_zeros), N, N))
 
-        # 4. Physics Constants
+        # 3. Physics Constants
         self.omega_0 = 1.0
-        self.temperature = 1.0e-5 # The variable we tune (Coupling Strength)
+        self.mass = 0.1          # Mass term to stabilize the vacuum (Higgs-like)
+        self.temperature = 0.001 # Starting Energy Scale
         
-        # 5. Controller State
-        self.prev_error = 0.0
-        self.integral_error = 0.0
+        # Vacuum Floor (The "Cosmological Constant" correction)
+        # Prevents division by zero in Alpha calculation
+        self.vacuum_floor = 1e-6
 
     def get_zeta_foam(self):
         """
-        Generates 'Quantum Foam' based on Riemann Zeta Zeros.
-        Instead of random noise, this is a structured interference pattern.
+        Generates the background metric noise based on Riemann Zeros.
+        The vacuum is not random; it is a symphony of prime-number resonances.
         """
-        # Time evolution of the zeros: exp(i * gamma * t)
-        # We sum over all zeros to get the local vacuum amplitude
+        # Evolve time
+        self.t_step += 0.01
         
-        # Vectorized calculation:
-        # We want: Sum_k [ exp(i * (gamma_k * t + phase_k(x,y))) ]
-        
-        # 1. Calculate time component (Shape: [10, 1, 1])
+        # Calculate the interference pattern at this time step
+        # Sum( exp(i * (gamma*t + phase)) )
         time_phases = (self.zeta_zeros * self.t_step).reshape(-1, 1, 1)
-        
-        # 2. Add spatial phases (Shape: [10, 64, 64])
         total_phases = time_phases + self.zeta_phases
         
-        # 3. Sum the waves
-        foam_field = np.sum(np.exp(1j * total_phases), axis=0)
+        foam = np.sum(np.exp(1j * total_phases), axis=0)
         
-        # Normalize: Divide by sqrt(N_zeros) to keep energy consistent
-        foam_field /= np.sqrt(len(self.zeta_zeros))
-        
-        return foam_field
+        # Normalize standard deviation to ~1.0
+        foam /= np.sqrt(len(self.zeta_zeros))
+        return foam
 
     def measure_alpha(self):
-        # Kinetic Energy (Matter Gradients)
+        # 1. Kinetic Energy (Gradient term)
         grad_x = np.roll(self.S, 1, axis=0) - self.S
         grad_y = np.roll(self.S, 1, axis=1) - self.S
         E_kinetic = np.sum(np.abs(grad_x)**2 + np.abs(grad_y)**2)
         
-        # Interaction Energy (Matter coupling to Zeta Foam)
-        # We recalculate the current foam state for the measurement
-        foam = self.get_zeta_foam()
+        # 2. Interaction Energy (Coupling to Zeta Foam)
+        zeta_foam = self.get_zeta_foam()
+        E_interaction = np.sum(np.abs(self.S * zeta_foam * self.temperature))
         
-        # Interaction is weighted by the Temperature (Coupling Scale)
-        E_interaction = np.sum(np.abs(self.S * foam * self.temperature))
-        
-        return E_interaction / (E_kinetic + 1e-9)
+        # 3. The Ratio (Alpha)
+        # We add the Vacuum Floor to the denominator to prevent singularity
+        # This represents the Zero Point Energy that cannot be removed.
+        return E_interaction / (E_kinetic + self.vacuum_floor)
 
-    def step_renormalization(self, target_alpha, zeta=0.707):
-        # Increment Universe Time
-        self.t_step += 0.01
-        
-        # --- A. PHYSICS ---
-        # 1. Generate the Zeta Vacuum
+    def step_physics(self):
+        # --- QUANTUM EVOLUTION ---
         zeta_foam = self.get_zeta_foam()
         
-        # 2. Calculate Energy Landscape
+        # Energy Landscape
         grad_x = np.roll(self.S, 1, axis=0) - self.S
         grad_y = np.roll(self.S, 1, axis=1) - self.S
         local_E = np.abs(grad_x)**2 + np.abs(grad_y)**2
         
-        # 3. Dynamics
+        # Effective Mass/Frequency
         omega_eff = self.omega_0 * (1 - 0.05 * local_E)
+        
+        # Diffusion
         laplacian = (np.roll(self.S, 1, axis=0) + np.roll(self.S, -1, axis=0) + 
                      np.roll(self.S, 1, axis=1) + np.roll(self.S, -1, axis=1) - 4*self.S)
         
-        # 4. Interaction Force
-        # The matter field is driven by the Zeta Foam, scaled by Temperature
-        driving_force = self.S * 1j * (zeta_foam * self.temperature)
+        # Force Terms
+        # 1. Driving force from Zeta Foam (scaled by T)
+        force_zeta = self.S * 1j * (zeta_foam * self.temperature)
         
-        # 5. Update
-        # Persistence 0.95 allows relaxation
-        S_new = (self.S * 0.95) * np.exp(1j * omega_eff * 0.01) + \
+        # 2. Restoring Force (Mass Term) - Keeps S finite
+        force_mass = -self.mass * self.S
+        
+        # Update Field
+        # Persistence 0.98 (High memory, stable vacuum)
+        S_new = (self.S * 0.98) * np.exp(1j * omega_eff * 0.01) + \
                 (0.01 * laplacian) + \
-                (0.01 * driving_force)
-                
+                (0.01 * force_zeta) + \
+                (0.01 * force_mass)
+        
+        # Renormalize (Unitary evolution)
         self.S = S_new / np.linalg.norm(S_new)
-
-        # --- B. CONTROL (Tuning the Scale) ---
-        current_alpha = self.measure_alpha()
-        error = current_alpha - target_alpha
-        
-        # Tuned PID
-        Kp = 0.02
-        Ki = 0.0005
-        Kd = zeta * 2 * np.sqrt(Kp)
-        
-        # Anti-Windup
-        self.integral_error += error
-        self.integral_error = np.clip(self.integral_error, -0.05, 0.05)
-        
-        d_error = error - self.prev_error
-        adjustment = (Kp * error) + (Ki * self.integral_error) + (Kd * d_error)
-        
-        # Update Temperature (The Renormalization Scale)
-        self.temperature -= adjustment * 5e-5
-        self.temperature = np.clip(self.temperature, 1e-8, 1.0)
-        
-        self.prev_error = error
-        
-        return current_alpha, self.temperature
