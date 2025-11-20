@@ -30,7 +30,7 @@ EPSILON_NOISE = 0.0001
 
 # --- COSMOLOGICAL PARAMETERS ---
 # Aggressive initial cooling to prevent early-epoch inflation
-COOLING_RATE = 0.80
+COOLING_RATE = 0.85
 
 # --- SPECTRAL NOISE SOURCE ---
 # First 10 non-trivial zeros of the Riemann Zeta function (Im[rho])
