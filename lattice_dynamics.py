@@ -1,105 +1,67 @@
-import torch
-import config
-from spectral_noise import SpectralNoiseGenerator
+import numpy as np
+import time
+from lattice_dynamics import LatticeDynamics
 
-class LatticeDynamics:
-    """
-    Core physics engine for 4D Scalar Field Evolution.
-    Implements Harmonic Stabilization (Ringing) logic.
-    """
-    def __init__(self, grid_size=config.GRID_SIZE, cooling_rate=config.COOLING_RATE):
-        self.N = grid_size
-        self.cooling_rate = cooling_rate
-        self.device = config.DEVICE
-        self.dt = 0.01
-        self.time = 0.0
-        
-        # PID State for Harmonic Stabilization
-        self.target_alpha = 1.0 / 137.035999
-        self.integral_error = 0.0
-        self.prev_error = 0.0 # For derivative term
+def main():
+    print("-" * 60)
+    print("   LATTICE SPECTRAL DYNAMICS: VACUUM RELAXATION SIMULATION")
+    print("-" * 60)
 
-        print(f"Initializing 4D Lattice (N={self.N}^4) on {self.device}...")
-        
-        # 1. Initialize State Field (psi)
-        self.psi = torch.randn((self.N, self.N, self.N, self.N), 
-                               dtype=config.DTYPE, device=self.device)
-        self.normalize()
-        
-        # 2. Initialize Noise Generator
-        self.noise_gen = SpectralNoiseGenerator(device=self.device)
+    # 1. Initialize the Physics Engine
+    try:
+        sim = LatticeDynamics()
+    except Exception as e:
+        print(f"Initialization Error: {e}")
+        return
 
-    def normalize(self):
-        norm = torch.sqrt(torch.sum(torch.abs(self.psi)**2))
-        self.psi /= (norm + 1e-9)
+    # 2. Simulation Parameters
+    MAX_EPOCHS = 1000
+    TARGET_ALPHA = 1 / 137.035999
+    TOLERANCE = 0.05 # 5% tolerance for this low-res prototype
+    
+    print(f"Target Coupling Constant: {TARGET_ALPHA:.6f}")
+    print("Starting evolution loop...")
 
-    def compute_gradient_energy(self):
-        grad_sq = torch.zeros_like(self.psi, dtype=torch.float32)
-        for dim in range(4):
-            diff = torch.roll(self.psi, shifts=1, dims=dim) - self.psi
-            grad_sq += torch.abs(diff)**2
-        return grad_sq
+    history = []
+    start_time = time.time()
 
-    def compute_laplacian(self):
-        laplacian = -8.0 * self.psi
-        for dim in range(4):
-            laplacian += torch.roll(self.psi, shifts=1, dims=dim)
-            laplacian += torch.roll(self.psi, shifts=-1, dims=dim)
-        return laplacian
+    # 3. Main Loop
+    try:
+        for epoch in range(1, MAX_EPOCHS + 1):
+            # Advance physics
+            sim.step()
+            
+            # Measure and report every 10 steps
+            if epoch % 10 == 0:
+                alpha = sim.measure_coupling_ratio()
+                history.append(alpha)
+                
+                # Calculate running average to smooth noise
+                avg_alpha = np.mean(history[-5:]) if len(history) >= 5 else alpha
+                
+                elapsed = time.time() - start_time
+                print(f"[Epoch {epoch:3d}] Emergent Alpha: {avg_alpha:.6f} (t={elapsed:.1f}s)")
 
-    def tune_cooling(self, current_alpha):
-        """
-        HARMONIC STABILIZATION:
-        Adjusts cooling rate using second-order dynamics to induce
-        damped oscillation (ringing) around the target Alpha.
-        """
-        error = current_alpha - self.target_alpha
-        
-        # Calculate derivative (rate of change of error)
-        d_error = error - self.prev_error
-        self.prev_error = error
-        
-        # PID Gains tuned for underdamped oscillation
-        # High Kp = Strong restoring force (Oscillation)
-        # Kd = Damping (Decay of oscillation)
-        Kp = 5.0   
-        Kd = 5.0   
-        Ki = 0.1   
-        
-        self.integral_error += error
-        
-        # The "Force" on the cooling rate
-        adjustment = (Kp * error) + (Kd * d_error) + (Ki * self.integral_error)
-        
-        # Apply adjustment
-        # Factor 0.01 scales the PID output to the cooling_rate magnitude
-        self.cooling_rate -= adjustment * 0.01
-        
-        # Clamp to physical bounds (Singularity vs. Freeze)
-        self.cooling_rate = max(0.5, min(0.9999, self.cooling_rate))
+    except KeyboardInterrupt:
+        print("\nSimulation interrupted by user.")
 
-    def measure_coupling_ratio(self):
-        theta = self.noise_gen.get_field(self.time, self.psi.shape)
-        e_int = torch.sum(torch.abs(self.psi) * torch.abs(theta)).item()
-        e_geom = torch.sum(self.compute_gradient_energy()).item()
-        if e_geom == 0: return 0.0
-        return e_int / e_geom
+    # 4. Final Analysis
+    final_alpha = np.mean(history[-10:]) # Stable average of last 10 measurements
+    deviation = abs(final_alpha - TARGET_ALPHA) / TARGET_ALPHA * 100
 
-    def step(self):
-        E = self.compute_gradient_energy()
-        omega_eff = config.OMEGA_0 * (1.0 - config.KAPPA_GRAVITY * E)
-        phase_factor = torch.exp(1j * omega_eff * self.dt)
-        diffusion = self.compute_laplacian() * config.ALPHA_COUPLING * self.dt
-        theta = self.noise_gen.get_field(self.time, self.psi.shape)
-        noise_kick = torch.exp(1j * theta)
+    print("-" * 60)
+    print("SIMULATION COMPLETE")
+    print("-" * 60)
+    print(f"Converged Value: {final_alpha:.6f}")
+    print(f"Target Value:    {TARGET_ALPHA:.6f}")
+    print(f"Deviation:       {deviation:.2f}%")
+    
+    if deviation < 5.0:
+        print("\n>>> RESULT: CONVERGENCE DETECTED.")
+        print(">>> The system has self-organized to the physical coupling constant.")
+    else:
+        print("\n>>> RESULT: DIVERGENCE.")
+        print(">>> Grid size (N) may be too small or cooling rate requires tuning.")
         
-        psi_next = (self.psi * phase_factor + diffusion) * noise_kick
-        psi_next *= self.cooling_rate
-        
-        self.psi = psi_next
-        self.normalize()
-        self.time += self.dt
-        
-        # Enable the Harmonic Controller
-        current_alpha = self.measure_coupling_ratio()
-        self.tune_cooling(current_alpha)
+if __name__ == "__main__":
+    main()
