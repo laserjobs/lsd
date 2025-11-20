@@ -15,7 +15,7 @@ def main():
         return
 
     # 2. Simulation Parameters
-    MAX_EPOCHS = 250
+    MAX_EPOCHS = 1000
     TARGET_ALPHA = 1 / 137.035999
     TOLERANCE = 0.05 # 5% tolerance for this low-res prototype
     
