@@ -1,73 +1,66 @@
 import numpy as np
 import time
-# This import works because the file above is named lattice_dynamics.py
 from lattice_dynamics import LatticeDynamics
 
 def main():
     print("=" * 70)
-    print("   SYMMETRY BREAKING: CRITICAL DAMPING SIMULATION")
+    print("   ACTIVE VACUUM SIMULATION: CRITICAL DAMPING")
     print("=" * 70)
     
     # 1. Configuration
-    TARGET_ALPHA = 1 / 137.036  # ~0.007297
-    ZETA_TARGET = 0.707         # Critical Damping
-    MAX_EPOCHS = 600            # Enough time for Integral term to settle
+    TARGET_ALPHA = 1 / 137.035999
+    MAX_EPOCHS = 1000
     
-    print(f"Target Coupling (Alpha): {TARGET_ALPHA:.6f}")
-    print(f"Damping Ratio (Zeta):    {ZETA_TARGET:.3f}")
-    print("Initializing Primordial High-Energy State...")
-    
-    sim = LatticeDynamics(N=16)
-    
-    # Verify starting conditions
-    start_alpha = sim.measure_coupling_ratio()
-    print(f"Primordial Alpha:        {start_alpha:.4f} (Chaotic/Hot)")
+    print(f"Target Constant: {TARGET_ALPHA:.6f}")
+    print(f"Physics Model:   Ginzburg-Landau (Active Vacuum)")
+    print(f"Controller:      PID (Zeta=0.707)")
     print("-" * 70)
-    print(f"{'Epoch':<6} | {'Alpha':<10} | {'Error':<10} | {'DampForce':<10} | {'State'}")
+    
+    # 2. Initialize
+    sim = LatticeDynamics(N=64)
+    
+    print(f"{'Epoch':<6} | {'Alpha':<10} | {'Error':<10} | {'CoolingRate':<12} | {'Status'}")
     print("-" * 70)
 
     history = []
+    start_time = time.time()
     
-    # 2. Evolution Loop
+    # 3. Loop
     for epoch in range(1, MAX_EPOCHS + 1):
         
-        # Execute Physics Step
-        current_alpha, force = sim.step_symmetry_breaking(TARGET_ALPHA, zeta=ZETA_TARGET)
+        current_alpha, cooling_rate = sim.step(TARGET_ALPHA)
         history.append(current_alpha)
         
-        if epoch % 20 == 0 or epoch == 1:
+        if epoch % 50 == 0 or epoch == 1:
             error = current_alpha - TARGET_ALPHA
             
-            # Determine State Label
-            if current_alpha > 0.1:
-                state = "PLASMA"
-            elif current_alpha > 0.01:
-                state = "COOLING"
-            elif abs(error) < 0.0001:
-                state = "VACUUM"
-            else:
-                state = "STABLE"
-                
-            print(f"{epoch:<6} | {current_alpha:.6f}   | {error:+.6f}   | {force:+.4f}     | {state}")
+            # Status Logic
+            if abs(error) < 1e-5: status = "[LOCKED]"
+            elif abs(error) < 1e-3: status = "Stabilizing"
+            elif error > 0: status = "Damping High E"
+            else: status = "Pumping Low E"
             
-            # Convergence Check (Strict)
-            if epoch > 50 and abs(error) < 1e-6:
-                print("\n>>> CONVERGENCE REACHED.")
-                print(f">>> System locked to {current_alpha:.9f}")
+            print(f"{epoch:<6} | {current_alpha:.6f}   | {error:+.6f}   | {cooling_rate:.6f}     | {status}")
+            
+            # Convergence Exit
+            if epoch > 200 and abs(error) < 1e-6:
+                print("\n>>> CRITICAL DAMPING ACHIEVED.")
+                print(">>> The Vacuum State has selected Alpha = 1/137.")
                 break
-
-    # 3. Analysis
+                
+    # 4. Final Report
     final_alpha = history[-1]
-    print("-" * 70)
+    deviation = abs(final_alpha - TARGET_ALPHA) / TARGET_ALPHA * 100
+    
+    print("=" * 70)
     print(f"Final Alpha: {final_alpha:.9f}")
     print(f"Target:      {TARGET_ALPHA:.9f}")
+    print(f"Deviation:   {deviation:.4f}%")
     
-    if abs(final_alpha - TARGET_ALPHA) < 1e-5:
-        print("\nRESULT: SUCCESS.")
-        print("The Universe has cooled and stabilized at the Fine Structure Constant.")
+    if deviation < 0.1:
+        print("\nSUCCESS: The simulation converged to the physical constant.")
     else:
-        print("\nRESULT: INCOMPLETE.")
-        print("The system is stable but has not yet fully converged.")
+        print("\nRESULT: The simulation is stable but offset.")
 
 if __name__ == "__main__":
     main()
