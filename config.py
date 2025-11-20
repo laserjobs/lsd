@@ -13,25 +13,24 @@ GRID_SIZE = 16
 DEVICE = 'cuda' if torch.cuda.is_available() else 'cpu'
 DTYPE = torch.complex64
 
-# --- PHYSICS CONSTANTS (RENORMALIZED) ---
-# Base oscillator frequency (Natural units: h_bar = c = 1)
+# --- PHYSICS CONSTANTS (FINAL CALIBRATION) ---
+# Base oscillator frequency
 OMEGA_0 = 1.0
 
-# Spatial coupling constant (Diffusion rate / Kinetic term)
-# INCREASED to 0.5 to stiffen the grid against low-N noise artifacts.
-ALPHA_COUPLING = 0.5
+# Spatial coupling (MAXIMUM STIFFNESS)
+# Forces rapid equilibration of energy across the small grid
+ALPHA_COUPLING = 1.0 
 
-# Self-interaction coupling (Analogous to gravitational backreaction)
+# Self-interaction coupling 
 KAPPA_GRAVITY = 0.05
 
-# Noise coupling strength (Interaction with spectral reservoir)
-# DECREASED to 0.0005 to prevent saturation in the small grid volume.
-EPSILON_NOISE = 0.0005
+# Noise coupling strength 
+# MINIMAL NOISE INJECTION to prevent saturation
+EPSILON_NOISE = 0.0001
 
 # --- COSMOLOGICAL PARAMETERS ---
-# System cooling rate per epoch.
-# Starting value for the PID controller.
-COOLING_RATE = 0.90
+# Aggressive initial cooling to prevent early-epoch inflation
+COOLING_RATE = 0.80
 
 # --- SPECTRAL NOISE SOURCE ---
 # First 10 non-trivial zeros of the Riemann Zeta function (Im[rho])
