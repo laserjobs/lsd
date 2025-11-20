@@ -7,7 +7,7 @@ import torch
 
 # --- SYSTEM PARAMETERS ---
 # Grid dimension N. Total cells = N^4.
-GRID_SIZE = 16 
+GRID_SIZE = 32 
 
 # Simulation device configuration
 DEVICE = 'cuda' if torch.cuda.is_available() else 'cpu'
