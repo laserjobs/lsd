@@ -37,3 +37,42 @@ We monitor the **Emergent Coupling Ratio**, defined as the ratio of the interact
 git clone https://github.com/yourusername/lattice-spectral-dynamics.git
 cd lattice-spectral-dynamics
 pip install -r requirements.txt
+```
+
+*Requires Python 3.8+ and PyTorch with CUDA support.*
+
+## Usage
+
+Run the main simulation script to evolve the lattice and monitor convergence.
+
+```bash
+python run_simulation.py
+```
+
+### Configuration
+Parameters can be adjusted in `config.py`:
+
+```python
+GRID_SIZE = 16        # Lattice dimension (N^4)
+COOLING_RATE = 0.92   # Dissipation factor (analogous to expansion/cooling)
+OMEGA_0 = 1.0         # Base frequency
+```
+
+## Scientific Context
+
+This framework investigates the intersection of:
+1.  **Quantum Chaos:** Using Zeta zeros as a proxy for the spectrum of a chaotic Hamiltonian.
+2.  **Open Quantum Systems:** Modeling the vacuum state not as static, but as a dynamic equilibrium between noise injection and dissipation.
+3.  **Emergent Gravity:** Treating spacetime metric variations as local modulations of the field update rate.
+
+## Contributing
+
+We are seeking contributors to:
+*   Optimize the 4D Laplacian kernel for large-scale clusters (MPI/OpenMP).
+*   Verify the "Fixed Point" hypothesis on grid sizes $N \ge 64$.
+*   Extend the noise generator to include $10^6+$ Zeta zeros.
+
+## License
+
+This project is licensed under the MIT License - see the [LICENSE](LICENSE) file for details.
+```
