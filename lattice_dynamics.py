@@ -54,23 +54,28 @@ class LatticeDynamics:
     def tune_cooling(self, current_alpha):
         """
         AUTO-CALIBRATION: Adjusts the cooling rate to stabilize Alpha.
-        Implements a PI (Proportional-Integral) Controller.
+        Corrected PID logic for high-noise regime.
         """
         error = current_alpha - self.target_alpha
         self.integral_error += error
         
-        # Controller Gains (Tuned for N=16 stability)
-        Kp = 0.1
-        Ki = 0.01
+        # Controller Gains (Aggressive tuning)
+        Kp = 2.0  # Strong reaction to current error
+        Ki = 0.1  # Accumulate pressure over time
         
-        # Adjustment: If Alpha is too high, we need MORE cooling (lower rate)
+        # Adjustment logic:
+        # If Alpha is too HIGH (0.2 vs 0.007), we need to DISSIPATE energy faster.
+        # This means cooling_rate should DECREASE (e.g. 0.99 -> 0.90).
+        # Since error is positive (0.2 - 0.007 > 0), we SUBTRACT adjustment.
+        
         adjustment = (Kp * error) + (Ki * self.integral_error)
         
-        # Apply adjustment (inverted because lower rate = more cooling)
-        self.cooling_rate -= adjustment
+        # Apply adjustment with damping factor to prevent oscillation
+        self.cooling_rate = self.cooling_rate - (adjustment * 0.001)
         
-        # Clamp to physical bounds to prevent collapse or explosion
-        self.cooling_rate = max(0.85, min(0.999, self.cooling_rate))
+        # Hard clamp to prevent numerical death
+        # Cooling rate must be aggressive (can go down to 0.5 if needed)
+        self.cooling_rate = max(0.50, min(0.9999, self.cooling_rate))
 
     def measure_coupling_ratio(self):
         """Calculates the emergent Alpha."""
