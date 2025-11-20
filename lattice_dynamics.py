@@ -1,67 +1,70 @@
 import numpy as np
-import time
-from lattice_dynamics import LatticeDynamics
 
-def main():
-    print("-" * 60)
-    print("   LATTICE SPECTRAL DYNAMICS: VACUUM RELAXATION SIMULATION")
-    print("-" * 60)
-
-    # 1. Initialize the Physics Engine
-    try:
-        sim = LatticeDynamics()
-    except Exception as e:
-        print(f"Initialization Error: {e}")
-        return
-
-    # 2. Simulation Parameters
-    MAX_EPOCHS = 1000
-    TARGET_ALPHA = 1 / 137.035999
-    TOLERANCE = 0.05 # 5% tolerance for this low-res prototype
-    
-    print(f"Target Coupling Constant: {TARGET_ALPHA:.6f}")
-    print("Starting evolution loop...")
-
-    history = []
-    start_time = time.time()
-
-    # 3. Main Loop
-    try:
-        for epoch in range(1, MAX_EPOCHS + 1):
-            # Advance physics
-            sim.step()
-            
-            # Measure and report every 10 steps
-            if epoch % 10 == 0:
-                alpha = sim.measure_coupling_ratio()
-                history.append(alpha)
-                
-                # Calculate running average to smooth noise
-                avg_alpha = np.mean(history[-5:]) if len(history) >= 5 else alpha
-                
-                elapsed = time.time() - start_time
-                print(f"[Epoch {epoch:3d}] Emergent Alpha: {avg_alpha:.6f} (t={elapsed:.1f}s)")
-
-    except KeyboardInterrupt:
-        print("\nSimulation interrupted by user.")
-
-    # 4. Final Analysis
-    final_alpha = np.mean(history[-10:]) # Stable average of last 10 measurements
-    deviation = abs(final_alpha - TARGET_ALPHA) / TARGET_ALPHA * 100
-
-    print("-" * 60)
-    print("SIMULATION COMPLETE")
-    print("-" * 60)
-    print(f"Converged Value: {final_alpha:.6f}")
-    print(f"Target Value:    {TARGET_ALPHA:.6f}")
-    print(f"Deviation:       {deviation:.2f}%")
-    
-    if deviation < 5.0:
-        print("\n>>> RESULT: CONVERGENCE DETECTED.")
-        print(">>> The system has self-organized to the physical coupling constant.")
-    else:
-        print("\n>>> RESULT: DIVERGENCE.")
-        print(">>> Grid size (N) may be too small or cooling rate requires tuning.")
+class LatticeDynamics:
+    def __init__(self, N=16):
+        self.N = N
+        # Initialize with a "Hot" broken state (High Energy Plasma)
+        # High variance (10.0) ensures we start at Alpha ~ 1.0
+        self.grid = np.random.normal(loc=1.0, scale=10.0, size=(N, N, N, N))
         
-if __name__ == "__main__":
-    main()
+        # PID Controller State
+        self.prev_error = 0.0
+        self.integral_error = 0.0
+        
+    def measure_coupling_ratio(self):
+        """
+        Alpha = Variance / Total_Energy
+        """
+        variance = np.var(self.grid)
+        mean_sq = np.mean(self.grid**2)
+        
+        if mean_sq == 0: return 1.0
+        return variance / mean_sq
+
+    def step_symmetry_breaking(self, target_alpha, zeta=0.707):
+        """
+        Applies Critical Damping (PID Control) to the lattice fluctuations.
+        Forces the system to condense from Alpha ~ 1.0 down to Target.
+        """
+        current_alpha = self.measure_coupling_ratio()
+        
+        # 1. Calculate Error
+        error = current_alpha - target_alpha
+        
+        # 2. PID Terms
+        # Proportional
+        Kp = 0.5
+        
+        # Integral (Accumulates error to close the steady-state gap)
+        self.integral_error += error
+        Ki = 0.02 
+        
+        # Derivative (Damping)
+        derivative = error - self.prev_error
+        Kd = zeta * 2 * np.sqrt(Kp) # Critical Damping Relation
+        
+        # 3. Calculate Damping Force
+        # F = Kp*e + Ki*int + Kd*de/dt
+        damping_force = (Kp * error) + (Ki * self.integral_error) + (Kd * derivative)
+        
+        # 4. Apply Physics (Cooling/Heating)
+        # We separate the Vacuum (Mean) from the Fluctuations (Noise)
+        vacuum_mean = np.mean(self.grid)
+        fluctuations = self.grid - vacuum_mean
+        
+        # Calculate Scaling Factor (1.0 = No Change, <1.0 = Cool, >1.0 = Heat)
+        # We clamp the force to prevent numerical explosions
+        scaling_factor = 1.0 - np.clip(damping_force, -0.5, 0.5)
+        
+        # Apply scaling ONLY to the fluctuations
+        self.grid = vacuum_mean + (fluctuations * scaling_factor)
+        
+        # 5. Vacuum Maintenance
+        # Ensure the Vacuum Expectation Value (VEV) doesn't collapse to zero
+        if abs(vacuum_mean) < 1.0:
+             self.grid += 0.01 * np.sign(vacuum_mean) if abs(vacuum_mean) > 1e-9 else 0.01
+
+        # Update State
+        self.prev_error = error
+        
+        return current_alpha, damping_force
