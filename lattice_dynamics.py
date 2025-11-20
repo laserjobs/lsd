@@ -5,94 +5,129 @@ class LatticeDynamics:
         self.N = N
         self.t_step = 0.0
         
-        # 1. Initialize Complex Scalar Field
-        self.S = np.random.rand(N, N) + 1j * np.random.rand(N, N)
-        self.S /= np.linalg.norm(self.S)
+        # 1. Initialize the Scalar Field (The State of the Universe)
+        # Complex field initialized with random vacuum fluctuations
+        self.S = np.random.normal(0, 0.1, (N, N)) + 1j * np.random.normal(0, 0.1, (N, N))
         
-        # 2. RIEMANN ZETA ZEROS (The DNA of the Vacuum)
-        # These imaginary parts define the "Resonant Frequencies" of the quantum foam.
+        # 2. The "Firmware": Riemann Zeta Zeros
+        # These are the resonant frequencies of the vacuum noise.
+        # Imaginary parts of the first 10 non-trivial zeros.
         self.zeta_zeros = np.array([
             14.1347, 21.0220, 25.0108, 30.4248, 32.9350, 
-            37.5861, 40.9187, 43.3270, 48.0051, 49.7738,
-            52.9703, 56.4462, 59.3470, 60.8317, 65.1125
+            37.5861, 40.9187, 43.3270, 48.0051, 49.7738
         ])
         
-        # Assign random spatial phase maps to each zero (Topology)
-        # This creates a complex 2D interference pattern for each frequency
+        # Spatial phase locks (Topology)
         self.zeta_phases = np.random.uniform(0, 2*np.pi, (len(self.zeta_zeros), N, N))
 
-        # 3. Physics Constants
-        self.omega_0 = 1.0
-        self.mass = 0.1          # Mass term to stabilize the vacuum (Higgs-like)
-        self.temperature = 0.001 # Starting Energy Scale
+        # 3. Physics Parameters
+        self.mass = 0.5          # Mass term (provides "stiffness" to the grid)
+        self.diffusion = 0.1     # Spatial coupling strength (alpha_geometric)
         
-        # Vacuum Floor (The "Cosmological Constant" correction)
-        # Prevents division by zero in Alpha calculation
-        self.vacuum_floor = 1e-6
+        # 4. The Control Variable: Effective Temperature (Coupling Strength)
+        # We start high to simulate a "hot" early universe
+        self.T = 0.1 
+        
+        # 5. Control System State (for Critical Damping)
+        self.alpha_history = []
+        self.integral_error = 0.0
+        self.prev_error = 0.0
 
-    def get_zeta_foam(self):
+    def get_zeta_noise(self):
         """
-        Generates the background metric noise based on Riemann Zeros.
-        The vacuum is not random; it is a symphony of prime-number resonances.
+        Generates the 'Orpheus Signal': Noise structured by the Riemann Zeros.
         """
-        # Evolve time
         self.t_step += 0.01
         
-        # Calculate the interference pattern at this time step
-        # Sum( exp(i * (gamma*t + phase)) )
-        time_phases = (self.zeta_zeros * self.t_step).reshape(-1, 1, 1)
-        total_phases = time_phases + self.zeta_phases
+        # Summation of quantum oscillators driven by Zeta frequencies
+        # Field(x, t) = Sum_k [ exp(i * (gamma_k * t + phase_k(x))) ]
         
-        foam = np.sum(np.exp(1j * total_phases), axis=0)
+        time_component = (self.zeta_zeros * self.t_step).reshape(-1, 1, 1)
+        waves = np.exp(1j * (time_component + self.zeta_phases))
         
-        # Normalize standard deviation to ~1.0
-        foam /= np.sqrt(len(self.zeta_zeros))
-        return foam
+        # Coherent superposition
+        noise_field = np.sum(waves, axis=0)
+        
+        # Normalize to unit energy density
+        return noise_field / np.sqrt(len(self.zeta_zeros))
 
     def measure_alpha(self):
-        # 1. Kinetic Energy (Gradient term)
+        """
+        Calculates the emergent Fine Structure Constant.
+        Alpha = Interaction_Energy / Kinetic_Energy
+        """
+        # Kinetic Energy (Gradient term)
+        # Uses interactions between neighbors (Laplacian)
         grad_x = np.roll(self.S, 1, axis=0) - self.S
         grad_y = np.roll(self.S, 1, axis=1) - self.S
-        E_kinetic = np.sum(np.abs(grad_x)**2 + np.abs(grad_y)**2)
+        E_kinetic = np.sum(np.abs(grad_x)**2 + np.abs(grad_y)**2) + 1e-9
         
-        # 2. Interaction Energy (Coupling to Zeta Foam)
-        zeta_foam = self.get_zeta_foam()
-        E_interaction = np.sum(np.abs(self.S * zeta_foam * self.temperature))
+        # Interaction Energy (Coupling to the Zeta Field)
+        # This represents the energy injected by the vacuum noise
+        zeta_field = self.get_zeta_noise()
+        E_interaction = np.sum(np.abs(self.S * zeta_field)) * self.T
         
-        # 3. The Ratio (Alpha)
-        # We add the Vacuum Floor to the denominator to prevent singularity
-        # This represents the Zero Point Energy that cannot be removed.
-        return E_interaction / (E_kinetic + self.vacuum_floor)
+        # The emergent coupling constant
+        return E_interaction / E_kinetic
 
     def step_physics(self):
-        # --- QUANTUM EVOLUTION ---
-        zeta_foam = self.get_zeta_foam()
+        """
+        Evolves the universe by one time step.
+        """
+        # 1. Generate the Vacuum Geometry (Zeta Noise)
+        noise = self.get_zeta_noise()
         
-        # Energy Landscape
-        grad_x = np.roll(self.S, 1, axis=0) - self.S
-        grad_y = np.roll(self.S, 1, axis=1) - self.S
-        local_E = np.abs(grad_x)**2 + np.abs(grad_y)**2
-        
-        # Effective Mass/Frequency
-        omega_eff = self.omega_0 * (1 - 0.05 * local_E)
-        
-        # Diffusion
+        # 2. Calculate Laplacian (Diffusion/Spatial Coupling)
         laplacian = (np.roll(self.S, 1, axis=0) + np.roll(self.S, -1, axis=0) + 
                      np.roll(self.S, 1, axis=1) + np.roll(self.S, -1, axis=1) - 4*self.S)
         
-        # Force Terms
-        # 1. Driving force from Zeta Foam (scaled by T)
-        force_zeta = self.S * 1j * (zeta_foam * self.temperature)
+        # 3. The Universal Update Rule (Discrete)
+        # dS/dt = i * [ Kinetic + Mass + Interaction ]
+        # Interaction strength is modulated by Temperature T
+        dS = 1j * (self.diffusion * laplacian - self.mass * self.S + self.T * noise * self.S)
         
-        # 2. Restoring Force (Mass Term) - Keeps S finite
-        force_mass = -self.mass * self.S
+        # 4. Update State
+        self.S += dS * 0.01 # dt = 0.01
         
-        # Update Field
-        # Persistence 0.98 (High memory, stable vacuum)
-        S_new = (self.S * 0.98) * np.exp(1j * omega_eff * 0.01) + \
-                (0.01 * laplacian) + \
-                (0.01 * force_zeta) + \
-                (0.01 * force_mass)
+        # Renormalize to maintain unitarity (Conservation of Probability)
+        norm = np.sqrt(np.sum(np.abs(self.S)**2))
+        self.S /= norm
+
+    def apply_critical_control(self, target_alpha, zeta=0.707):
+        """
+        Adjusts the Vacuum Temperature T to stabilize Alpha at the target.
+        Uses a PID controller tuned for Critical Damping.
+        """
+        current_alpha = self.measure_alpha()
         
-        # Renormalize (Unitary evolution)
-        self.S = S_new / np.linalg.norm(S_new)
+        # Error: Distance from the physical constant
+        error = current_alpha - target_alpha
+        
+        # --- Control Physics ---
+        # We model the adjustment of T as a damped harmonic oscillator.
+        # stiffness (Kp) determines how fast we correct.
+        # damping (Kd) determines stability.
+        
+        Kp = 0.05  # Stiffness
+        Ki = 0.002 # Integral (removes steady-state drift)
+        
+        # Critical Damping Relation: Kd = 2 * zeta * sqrt(Kp)
+        Kd = 2 * zeta * np.sqrt(Kp) 
+        
+        # PID Terms
+        P = Kp * error
+        I = Ki * self.integral_error
+        D = Kd * (error - self.prev_error)
+        
+        # The "Restoring Force" on the Temperature
+        adjustment = P + I + D
+        
+        # Apply Adjustment (Negative feedback: if Alpha is too high, lower T)
+        self.T -= adjustment
+        
+        # Constraints
+        self.T = np.clip(self.T, 1e-6, 1.0) # Temperature must be positive
+        self.integral_error += error
+        self.prev_error = error
+        
+        return current_alpha, self.T
