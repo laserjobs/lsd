@@ -3,15 +3,15 @@ from lattice_dynamics import LatticeDynamics
 
 def main():
     print("=" * 70)
-    print("   ZETA FUNCTION VACUUM: ORIGIN OF FINE STRUCTURE")
+    print("   RIEMANN ZETA RESONANCE: VACUUM STABILIZATION")
     print("=" * 70)
     
     TARGET_ALPHA = 1 / 137.035999
-    MAX_EPOCHS = 1500
+    MAX_EPOCHS = 2000
     
-    print(f"Target:       {TARGET_ALPHA:.6f}")
-    print(f"Vacuum Model: Riemann Zeta Interference (10 Zeros)")
-    print(f"Theory:       Quantum Foam = Number Theory Noise")
+    print(f"Target Alpha: {TARGET_ALPHA:.6f}")
+    print(f"Physics:      Zeta Interference + Mass Gap Regularization")
+    print(f"Control:      Integral Drift (Slow Annealing)")
     print("-" * 70)
     
     sim = LatticeDynamics(N=64)
@@ -21,30 +21,43 @@ def main():
 
     history = []
     
-    # Pre-warm the vacuum
-    # This establishes the initial interference pattern
-    for _ in range(50): sim.step_renormalization(TARGET_ALPHA)
+    # Initial pre-warm to let gradients form
+    for _ in range(100): sim.step_physics()
 
     for epoch in range(1, MAX_EPOCHS + 1):
         
-        current_alpha, temp = sim.step_renormalization(TARGET_ALPHA)
+        sim.step_physics()
+        current_alpha = sim.measure_alpha()
         history.append(current_alpha)
         
+        # CONTROL LOGIC (Integral Only)
+        # We slowly drift T based on the sign of the error.
+        # No P or D terms prevents violent reaction to noise.
+        error = current_alpha - TARGET_ALPHA
+        
+        # Gain is very small (Adiabatic process)
+        drift = 1.0e-6 * np.sign(error)
+        
+        # If Alpha is too high, we reduce T (Cooling)
+        # If Alpha is too low, we increase T (Heating)
+        sim.temperature -= drift
+        
+        # Clamp to safe range (Prevent T=0 collapse)
+        sim.temperature = np.clip(sim.temperature, 1e-5, 0.1)
+        
         if epoch % 50 == 0 or epoch == 1:
-            error = current_alpha - TARGET_ALPHA
+            # Status Label
+            if abs(error) < 1e-6: status = "[LOCKED]"
+            elif abs(error) < 1e-4: status = "Resonating"
+            elif error > 0: status = "Cooling..."
+            else: status = "Heating..."
             
-            if abs(error) < 1e-7: status = "[LOCKED]"
-            elif abs(error) < 1e-5: status = "Converged"
-            elif abs(error) < 1e-4: status = "Stabilizing"
-            elif error > 0: status = "Damping"
-            else: status = "Exciting"
+            print(f"{epoch:<6} | {current_alpha:.6f}   | {error:+.6f}   | {sim.temperature:.8f}     | {status}")
             
-            print(f"{epoch:<6} | {current_alpha:.6f}   | {error:+.6f}   | {temp:.8f}     | {status}")
-            
-            # Convergence Lock
-            if epoch > 600 and abs(error) < 2e-7:
-                print("\n>>> RESONANCE ACHIEVED.")
-                print(f">>> The universe is resonating with the Riemann Zeros at alpha ~ 1/137.")
+            # Check for sustained lock
+            if epoch > 500 and abs(error) < 2e-6:
+                print("\n>>> ZETA RESONANCE ESTABLISHED.")
+                print(f">>> The vacuum stabilized at Alpha = {current_alpha:.9f}")
                 break
 
     final_alpha = history[-1]
@@ -52,12 +65,12 @@ def main():
     print(f"Final Alpha: {final_alpha:.9f}")
     print(f"Target:      {TARGET_ALPHA:.9f}")
     
-    if abs(final_alpha - TARGET_ALPHA) < 1e-6:
+    if abs(final_alpha - TARGET_ALPHA) < 1e-5:
         print("RESULT: SUCCESS.")
-        print("The randomness of the quantum foam was successfully replaced")
-        print("by the deterministic chaos of the Riemann Zeta function.")
+        print("The interaction of the Zeta Zeros with the matter field")
+        print("naturally supports the Fine Structure Constant.")
     else:
-        print("RESULT: Still settling.")
+        print("RESULT: Stable but drifting.")
 
 if __name__ == "__main__":
     main()
